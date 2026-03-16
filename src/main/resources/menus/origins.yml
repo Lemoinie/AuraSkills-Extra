@@ -1,0 +1,30 @@
+title: 'Select Your Origin'
+size: 4
+fill:
+  enabled: true
+  material: gray_stained_glass_pane
+  display_name: ' '
+items:
+  close:
+    pos: 3,4
+    material: barrier
+    display_name: '<red>Close'
+templates:
+  origin:
+    slots:
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+    material: paper
+    display_name: '<gold>{name}'
+    lore:
+      - ''
+      - '<green>Pros:'
+      - '{pros}'
+      - ''
+      - '<red>Cons:'
+      - '{cons}'
+      - ''
+      - '<yellow>Click to select!'

@@ -1,0 +1,13 @@
+name: AuraSkills-Extra
+version: '1.0'
+main: com.test.MyPlugin
+api-version: '1.21'
+author: Antigravity
+description: A Paper 1.21.1 plugin.
+softdepend: [AuraSkills]
+
+commands:
+  ske:
+    description: Main command for AuraSkills-Extra
+    usage: /<command> reload
+    permission: ske.admin
