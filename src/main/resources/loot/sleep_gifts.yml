@@ -1,0 +1,43 @@
+# Feline Sleep Gifts Configuration
+# Chance for any gift to appear (0.0 to 1.0)
+gift_chance: 0.7
+
+# List of items with their weights and amounts
+# Weight can be any positive number. The probability is calculated as (weight / total_weight)
+gifts:
+  - type: ENCHANTED_GOLDEN_APPLE
+    weight: 5
+    amount: 1-2
+  - type: DIAMOND_BLOCK
+    weight: 10
+    amount: 1-2
+  - type: GOLD_INGOT
+    weight: 20
+    amount: 3-6
+  - type: IRON_INGOT
+    weight: 30
+    amount: 6-7
+  - type: COD
+    weight: 50
+    amount: 1-4
+  - type: SALMON
+    weight: 40
+    amount: 1-4
+  - type: TROPICAL_FISH
+    weight: 15
+    amount: 1-2
+  - type: COOKED_BEEF
+    weight: 35
+    amount: 1-3
+  - type: COOKED_CHICKEN
+    weight: 35
+    amount: 1-3
+  - type: ROTTEN_FLESH
+    weight: 20
+    amount: 1-4
+  - type: STRING
+    weight: 40
+    amount: 2-6
+  - type: FEATHER
+    weight: 40
+    amount: 1-4

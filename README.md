@@ -16,6 +16,7 @@ A powerful expansion for AuraSkills that introduces a flexible **Origins** syste
 - **Dwarf**: The master miner. Haste and Night Vision. +10% XP from Mining.
 - **Wood Elf**: Bow specialist. +10% XP from Archery.
 - **Goblin**: Small but very fast. 40% discounts with gold.
+- **Siren**: Master of the sea. Breathes in water but drowns on land. Vulnerable to heat.
 - **Undead**: Neutral to other undead. Rotten flesh is your fuel.
 - **Orc**: Massive size and melee power. +10% XP from Fighting & Defense.
 - **Dragonblood**: Fire immune and blazing strikes.

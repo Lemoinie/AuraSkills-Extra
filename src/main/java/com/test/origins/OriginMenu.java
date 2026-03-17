@@ -2,10 +2,7 @@ package com.test.origins;
 
 import dev.aurelium.slate.builder.MenuBuilder;
 import dev.aurelium.slate.inv.content.SlotPos;
-import dev.aurelium.slate.item.provider.ListBuilder;
-import dev.aurelium.slate.position.FixedPosition;
 import org.bukkit.ChatColor;
-import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
@@ -55,8 +52,12 @@ public class OriginMenu {
                     }
                 }
                 int index = values.indexOf(t.value());
-                int slot = 11 + index;
-                if (index >= 5) slot = 20 + (index - 5);
+                int slot;
+                if (index < 7) {
+                    slot = 10 + index;
+                } else {
+                    slot = 19 + (index - 7);
+                }
                 return SlotPos.of(slot / 9, slot % 9);
             });
 

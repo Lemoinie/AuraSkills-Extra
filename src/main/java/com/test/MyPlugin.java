@@ -4,6 +4,9 @@ import com.test.commands.SkeCommand;
 import com.test.origins.OriginListener;
 import com.test.origins.OriginManager;
 import com.test.origins.OriginMenu;
+import com.test.spells.SpellListener;
+import com.test.spells.SpellManager;
+import com.test.spells.SpellMenu;
 import dev.aurelium.auraskills.api.AuraSkillsApi;
 import dev.aurelium.auraskills.api.AuraSkillsBukkit;
 import dev.aurelium.slate.inv.content.SlotPos;
@@ -17,10 +20,12 @@ import java.io.File;
 public class MyPlugin extends JavaPlugin {
 
     private OriginManager originManager;
+    private SpellManager spellManager;
 
     @Override
     public void onEnable() {
         this.originManager = new OriginManager(this);
+        this.spellManager = new SpellManager(this);
 
         // Save resources
         saveDefaultFiles();
@@ -34,6 +39,7 @@ public class MyPlugin extends JavaPlugin {
 
         // Register Listeners
         getServer().getPluginManager().registerEvents(new OriginListener(originManager), this);
+        getServer().getPluginManager().registerEvents(new SpellListener(spellManager), this);
 
         // Register Menus
         AuraSkillsApi commonApi = AuraSkillsApi.get();
@@ -54,6 +60,12 @@ public class MyPlugin extends JavaPlugin {
 
         // Add our data folder to Slate's merge directories so it can find origins.yml
         bukkitApi.getMenuManager().buildMenu("origins", new OriginMenu(originManager)::build);
+
+        // Register Spell Menus
+        SpellMenu spellMenu = new SpellMenu(spellManager);
+        bukkitApi.getMenuManager().buildMenu("spells_main", spellMenu::buildMain);
+        bukkitApi.getMenuManager().buildMenu("spells_learn", spellMenu::buildLearn);
+        bukkitApi.getMenuManager().buildMenu("spells_equip", spellMenu::buildEquip);
 
         // Hook into skills menu
         bukkitApi.getMenuManager().buildMenu("skills", menu -> {
@@ -136,5 +148,9 @@ public class MyPlugin extends JavaPlugin {
 
     public OriginManager getOriginManager() {
         return originManager;
+    }
+
+    public SpellManager getSpellManager() {
+        return spellManager;
     }
 }

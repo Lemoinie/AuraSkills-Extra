@@ -6,7 +6,11 @@ import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Player;
 
+import org.bukkit.Material;
+import org.bukkit.configuration.file.YamlConfiguration;
+import java.io.File;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -15,14 +19,64 @@ public class OriginManager {
     private final Map<UUID, Origin> playerOrigins = new HashMap<>();
     private boolean enabled = true;
     private final org.bukkit.NamespacedKey modifierKey;
+    private final org.bukkit.NamespacedKey dynamicModifierKey;
     private final org.bukkit.plugin.Plugin plugin;
     private final OriginDataStorage storage;
+    private final LootTable felineSleepGifts = new LootTable();
 
     public OriginManager(org.bukkit.plugin.Plugin plugin) {
         this.plugin = plugin;
         this.modifierKey = new org.bukkit.NamespacedKey(plugin, "origin_modifier");
+        this.dynamicModifierKey = new org.bukkit.NamespacedKey(plugin, "origin_dynamic_modifier");
         this.storage = new OriginDataStorage(plugin);
         this.playerOrigins.putAll(storage.loadAll());
+        loadLootTables();
+    }
+
+    private void loadLootTables() {
+        File lootDir = new File(plugin.getDataFolder(), "loot");
+        if (!lootDir.exists()) lootDir.mkdirs();
+        
+        File giftFile = new File(lootDir, "sleep_gifts.yml");
+        if (!giftFile.exists()) {
+            plugin.saveResource("loot/sleep_gifts.yml", false);
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(giftFile);
+        felineSleepGifts.setGiftChance(config.getDouble("gift_chance", 0.7));
+        
+        List<Map<?, ?>> gifts = config.getMapList("gifts");
+        for (Map<?, ?> entry : gifts) {
+            try {
+                Material type = Material.valueOf((String) entry.get("type"));
+                Object amountObj = entry.get("amount");
+                int min = 1;
+                int max = 1;
+                
+                if (amountObj instanceof Number) {
+                    min = ((Number) amountObj).intValue();
+                    max = min;
+                } else if (amountObj instanceof String str) {
+                    if (str.contains("-")) {
+                        String[] parts = str.split("-");
+                        min = Integer.parseInt(parts[0].trim());
+                        max = Integer.parseInt(parts[1].trim());
+                    } else {
+                        min = Integer.parseInt(str.trim());
+                        max = min;
+                    }
+                }
+                
+                double weight = ((Number) entry.get("weight")).doubleValue();
+                felineSleepGifts.addEntry(type, min, max, weight);
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to load loot entry: " + entry);
+            }
+        }
+    }
+
+    public LootTable getFelineSleepGifts() {
+        return felineSleepGifts;
     }
 
     public org.bukkit.plugin.Plugin getPlugin() {
@@ -31,6 +85,10 @@ public class OriginManager {
 
     public org.bukkit.NamespacedKey getModifierKey() {
         return modifierKey;
+    }
+
+    public org.bukkit.NamespacedKey getDynamicModifierKey() {
+        return dynamicModifierKey;
     }
 
     public void setOrigin(Player player, Origin origin) {

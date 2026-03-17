@@ -1,0 +1,32 @@
+# Spell Tier Configuration
+tiers:
+  COMMON:
+    xp_cost: 50
+    wisdom_requirement: 5
+    learnable: true
+    usable: true
+  UNCOMMON:
+    xp_cost: 150
+    wisdom_requirement: 15
+    learnable: true
+    usable: true
+  RARE:
+    xp_cost: 400
+    wisdom_requirement: 30
+    learnable: true
+    usable: true
+  EPIC:
+    xp_cost: 1000
+    wisdom_requirement: 50
+    learnable: true
+    usable: true
+  LEGENDARY:
+    xp_cost: 2500
+    wisdom_requirement: 75
+    learnable: true
+    usable: true
+  MYTHIC:
+    xp_cost: 6000
+    wisdom_requirement: 100
+    learnable: true
+    usable: true
