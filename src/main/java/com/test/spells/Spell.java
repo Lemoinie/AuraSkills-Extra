@@ -10,8 +10,10 @@ public enum Spell {
     ARCANE_SURGE("Arcane Surge", SpellTier.RARE, "A dash-blink that reduces the mana cost of your next spell."),
     METEOR("Meteor", SpellTier.LEGENDARY, "Massive AOE explosion."),
     THUNDERSTORM("Thunderstorm", SpellTier.LEGENDARY, "Lightning strikes all enemies around caster multiple times."),
+    STORM_CALLING("Storm Calling", SpellTier.RARE, "Changes the weather to a thunderstorm."),
     METEOR_SHOWER("Meteor Shower", SpellTier.LEGENDARY, "Drops multiple small meteors in a radius."),
-    CHAIN_LIGHTNING("Chain Lightning", SpellTier.LEGENDARY, "A lightning beam that jumps between enemies.");
+    CHAIN_LIGHTNING("Chain Lightning", SpellTier.LEGENDARY, "A lightning beam that jumps between enemies."),
+    MALEVOLENT_SHRINE("Malevolent Shrine", SpellTier.MYTHIC, "A devastating ritual that slashes enemies in a massive radius.");
 
     private final String displayName;
     private final SpellTier tier;

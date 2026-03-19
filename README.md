@@ -29,4 +29,7 @@ A powerful expansion for AuraSkills that introduces a flexible **Origins** syste
 - **AuraSkills 2.x**
 
 ## Wiki
-For a detailed breakdown of every origin and the Rebirth Ritual, check the [Wiki](WIKI.md).
+Check our detailed wiki for in-depth information:
+- [Origins Wiki](wiki/Origin/Overview.md)
+- [Spells Wiki](wiki/Spell/Overview.md)
+- [Rebirth Ritual](wiki/Origin/Rebirth.md)
