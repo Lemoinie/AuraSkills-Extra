@@ -57,6 +57,15 @@ public class MyPlugin extends JavaPlugin {
                 return null;
             }
         });
+        
+        // Register Spell as a context type so Slate's template system can handle it
+        bukkitApi.getMenuManager().registerContext("Spell", com.test.spells.Spell.class, (menuName, input) -> {
+            try {
+                return com.test.spells.Spell.valueOf(input.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        });
 
         // Add our data folder to Slate's merge directories so it can find origins.yml
         bukkitApi.getMenuManager().buildMenu("origins", new OriginMenu(originManager)::build);
@@ -66,6 +75,9 @@ public class MyPlugin extends JavaPlugin {
         bukkitApi.getMenuManager().buildMenu("spells_main", spellMenu::buildMain);
         bukkitApi.getMenuManager().buildMenu("spells_learn", spellMenu::buildLearn);
         bukkitApi.getMenuManager().buildMenu("spells_equip", spellMenu::buildEquip);
+        bukkitApi.getMenuManager().buildMenu("spells_admin", spellMenu::buildAdminMain);
+        bukkitApi.getMenuManager().buildMenu("spells_admin_players", spellMenu::buildAdminPlayerList);
+        bukkitApi.getMenuManager().buildMenu("spells_admin_spells", spellMenu::buildAdminSpellList);
 
         // Hook into skills menu
         bukkitApi.getMenuManager().buildMenu("skills", menu -> {
@@ -127,13 +139,41 @@ public class MyPlugin extends JavaPlugin {
     }
 
     private void saveDefaultFiles() {
+        File configFolder = new File(getDataFolder(), "config");
+        if (!configFolder.exists()) configFolder.mkdirs();
+        
+        File originsFolder = new File(configFolder, "origins");
+        if (!originsFolder.exists()) originsFolder.mkdirs();
+        
+        File spellsFolder = new File(configFolder, "spells");
+        if (!spellsFolder.exists()) spellsFolder.mkdirs();
+
+        if (!new File(originsFolder, "master.yml").exists()) {
+            saveResource("config/origins/master.yml", false);
+        }
+        if (!new File(spellsFolder, "master.yml").exists()) {
+            saveResource("config/spells/master.yml", false);
+        }
+        if (!new File(spellsFolder, "tiers.yml").exists()) {
+            saveResource("config/spells/tiers.yml", false);
+        }
+
         File folder = new File(getDataFolder(), "menus");
         if (!folder.exists()) {
             folder.mkdirs();
         }
-        File originsFile = new File(folder, "origins.yml");
-        if (!originsFile.exists()) {
-            saveResource("menus/origins.yml", false);
+        
+        // Origins Menu
+        // Always overwrite menus to ensure latest fixes/templates are applied
+        saveResource("menus/origins.yml", true);
+
+        // Spell Menus
+        String[] spellMenus = {
+            "spells_main.yml", "spells_learn.yml", "spells_equip.yml",
+            "spells_admin.yml", "spells_admin_players.yml", "spells_admin_spells.yml"
+        };
+        for (String menu : spellMenus) {
+            saveResource("menus/" + menu, true);
         }
     }
 

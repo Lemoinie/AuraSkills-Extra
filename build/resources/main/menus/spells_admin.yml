@@ -1,0 +1,18 @@
+title: 'Spell Administration'
+size: 3
+fill:
+  enabled: true
+  material: blue_stained_glass_pane
+  display_name: ' '
+items:
+  give_spell:
+    pos: 1,4
+    material: blaze_rod
+    display_name: '<gold><l>Give Spell'
+    lore:
+      - '<gray>Select a player to manage'
+      - '<gray>their learned spells.'
+  back:
+    pos: 2,4
+    material: arrow
+    display_name: '<red>Back'

@@ -11,13 +11,14 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Fireball;
 import org.bukkit.entity.SmallFireball;
-import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.Entity;
+import java.util.Collection;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -37,10 +38,32 @@ public class SpellListener implements Listener {
 
     public SpellListener(SpellManager spellManager) {
         this.spellManager = spellManager;
+        startRegenTask();
+    }
+
+    private void startRegenTask() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                double multiplier = spellManager.getManaRegenMultiplier();
+                if (multiplier <= 1.0) return;
+
+                for (Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
+                    SkillsUser user = AuraSkillsApi.get().getUser(player.getUniqueId());
+                    if (user != null && user.getMana() < user.getMaxMana()) {
+                        // AuraSkills base regen is roughly 1% of max mana per 2 seconds (0.5% per sec)
+                        // plus wisdom bonus. We'll add roughly 'multiplier - 1' times that base.
+                        double bonus = (user.getMaxMana() * 0.005) * (multiplier - 1.0);
+                        user.setMana(Math.min(user.getMaxMana(), user.getMana() + bonus));
+                    }
+                }
+            }
+        }.runTaskTimer(spellManager.getPlugin(), 20L, 20L);
     }
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
+        if (!spellManager.isEnabled()) return;
         Player player = event.getPlayer();
         ItemStack item = event.getItem();
 
@@ -62,15 +85,46 @@ public class SpellListener implements Listener {
             }
         } else if (event.getAction() == Action.RIGHT_CLICK_AIR || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
             castSpell(player);
+        } else {
+            // player.sendMessage("Debug: Action: " + event.getAction());
+        }
+    }
+
+    @EventHandler
+    public void onEntityDeath(EntityDeathEvent event) {
+        LivingEntity entity = event.getEntity();
+        Player killer = entity.getKiller();
+        if (killer == null) return;
+
+        double gain = spellManager.getManaGain(entity.getType());
+        if (gain == 0) return;
+
+        SkillsUser user = AuraSkillsApi.get().getUser(killer.getUniqueId());
+        if (user != null) {
+            double current = user.getMana();
+            double next = Math.min(user.getMaxMana(), current + gain);
+            user.setMana(next);
+            
+            if (gain > 0) {
+                // Minor visual feedback
+                killer.spawnParticle(Particle.BUBBLE, entity.getLocation().add(0, 1, 0), 5, 0.2, 0.2, 0.2, 0.05);
+            }
         }
     }
 
     private void castSpell(Player player) {
+        if (!spellManager.isEnabled()) {
+            player.sendMessage(ChatColor.RED + "The spell system is currently disabled!");
+            return;
+        }
+
         Spell spell = spellManager.getActiveSpell(player);
+        spellManager.getPlugin().getLogger().info("[SKE] " + player.getName() + " is attempting to cast " + (spell != null ? spell.name() : "NONE"));
         if (spell == null) {
             player.sendMessage(ChatColor.RED + "You don't have any spells equipped!");
             return;
         }
+
 
         if (spellManager.isOnCooldown(player, spell)) {
             player.sendActionBar(ChatColor.RED + "Cooldown: " + spellManager.getRemainingCooldown(player, spell) + "s");
@@ -79,14 +133,12 @@ public class SpellListener implements Listener {
         }
 
         SkillsUser user = AuraSkillsApi.get().getUser(player.getUniqueId());
-        if (user == null) return;
+        if (user == null) {
+            player.sendMessage(ChatColor.RED + "Skills data not loaded yet!");
+            return;
+        }
 
-        double manaCost = 20;
-        if (spell.getTier() == SpellTier.COMMON) manaCost = 15;
-        else if (spell.getTier() == SpellTier.UNCOMMON) manaCost = 30;
-        else if (spell.getTier() == SpellTier.RARE) manaCost = 60;
-        else if (spell.getTier() == SpellTier.LEGENDARY) manaCost = 150;
-        else if (spell.getTier() == SpellTier.MYTHIC) manaCost = 300;
+        double manaCost = spell.getManaCost();
 
         if (spellManager.hasSurgeDiscount(player)) {
             manaCost *= 0.9;
@@ -98,20 +150,24 @@ public class SpellListener implements Listener {
         }
 
         boolean success = false;
-        switch (spell) {
-            case KINETIC_SHOVE: success = castKineticShove(player, user); break;
-            case SPARK: success = castSpark(player, user); break;
-            case MAGE_LIGHT: success = castMageLight(player, user); break;
-            case NATURES_ROOT: success = castNaturesRoot(player, user); break;
-            case FIREBOLT: success = castFirebolt(player, user); break;
-            case FROST_TOUCH: success = castFrostTouch(player, user); break;
-            case ARCANE_SURGE: success = castArcaneSurge(player, user); break;
-            case METEOR: success = castMeteor(player, user); break;
-            case THUNDERSTORM: success = castThunderstorm(player, user); break;
-            case STORM_CALLING: success = castStormCalling(player, user); break;
-            case METEOR_SHOWER: success = castMeteorShower(player, user); break;
-            case CHAIN_LIGHTNING: success = castChainLightning(player, user); break;
-            case MALEVOLENT_SHRINE: success = castMalevolentShrine(player, user); break;
+        try {
+            switch (spell) {
+                case KINETIC_SHOVE: success = castKineticShove(player, user); break;
+                case SPARK: success = castSpark(player, user); break;
+                case MAGE_LIGHT: success = castMageLight(player, user); break;
+                case NATURES_ROOT: success = castNaturesRoot(player, user); break;
+                case FIREBOLT: success = castFirebolt(player, user); break;
+                case FROST_TOUCH: success = castFrostTouch(player, user); break;
+                case ARCANE_SURGE: success = castArcaneSurge(player, user); break;
+                case METEOR: success = castMeteor(player, user); break;
+                case THUNDERSTORM: success = castThunderstorm(player, user); break;
+                case STORM_CALLING: success = castStormCalling(player, user); break;
+                case METEOR_SHOWER: success = castMeteorShower(player, user); break;
+                case CHAIN_LIGHTNING: success = castChainLightning(player, user); break;
+                case MALEVOLENT_SHRINE: success = castMalevolentShrine(player, user); break;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         if (success) {
@@ -125,39 +181,28 @@ public class SpellListener implements Listener {
     }
 
     private void applyCooldown(Player player, Spell spell) {
-        long cd = 5;
-        switch (spell) {
-            case SPARK: cd = 1; break;
-            case KINETIC_SHOVE: cd = 3; break;
-            case MAGE_LIGHT: cd = 5; break;
-            case NATURES_ROOT: cd = 8; break;
-            case FIREBOLT: cd = 5; break;
-            case FROST_TOUCH: cd = 8; break;
-            case ARCANE_SURGE: cd = 15; break;
-            case THUNDERSTORM: cd = 30; break;
-            case STORM_CALLING: cd = 300; break;
-            case METEOR: cd = 45; break;
-            case METEOR_SHOWER: cd = 60; break;
-            case CHAIN_LIGHTNING: cd = 20; break;
-            case MALEVOLENT_SHRINE: cd = 120; break;
-        }
-        spellManager.setCooldown(player, spell, cd);
+        spellManager.setCooldown(player, spell, spell.getCooldown());
     }
 
     private void spawnFlashyParticles(Location loc, SpellTier tier, Particle particle) {
-        int count = 10;
-        double speed = 0.1;
-        double offset = 0.5;
+        try {
+            int count = 10;
+            double speed = 0.1;
+            double offset = 0.5;
 
-        if (tier == SpellTier.UNCOMMON) { count = 30; offset = 1.0; }
-        else if (tier == SpellTier.RARE) { count = 60; speed = 0.2; offset = 1.5; }
-        else if (tier == SpellTier.LEGENDARY) { count = 150; speed = 0.3; offset = 2.0; }
-        else if (tier == SpellTier.MYTHIC) { count = 300; speed = 0.5; offset = 3.0; }
+            if (tier == SpellTier.UNCOMMON) { count = 30; offset = 1.0; }
+            else if (tier == SpellTier.RARE) { count = 60; speed = 0.2; offset = 1.5; }
+            else if (tier == SpellTier.LEGENDARY) { count = 150; speed = 0.3; offset = 2.0; }
+            else if (tier == SpellTier.MYTHIC) { count = 300; speed = 0.5; offset = 3.0; }
 
-        loc.getWorld().spawnParticle(particle, loc, count, offset, offset, offset, speed);
-        if (tier == SpellTier.LEGENDARY || tier == SpellTier.MYTHIC) {
-            loc.getWorld().spawnParticle(Particle.FLASH, loc, 5, 0.1, 0.1, 0.1, 0.01);
-            loc.getWorld().spawnParticle(Particle.EXPLOSION, loc, 2, 0.1, 0.1, 0.1, 0.01);
+            loc.getWorld().spawnParticle(particle, loc, count, offset, offset, offset, speed);
+            if (tier == SpellTier.LEGENDARY || tier == SpellTier.MYTHIC) {
+                // Use extremely safe particles
+                loc.getWorld().spawnParticle(Particle.END_ROD, loc, 5, 0.1, 0.1, 0.1, 0.01);
+                loc.getWorld().spawnParticle(Particle.FIREWORK, loc, 2, 0.1, 0.1, 0.1, 0.01);
+            }
+        } catch (Exception e) {
+            spellManager.getPlugin().getLogger().warning("Failed to spawn particles: " + e.getMessage());
         }
     }
 
@@ -279,71 +324,120 @@ public class SpellListener implements Listener {
     }
 
     private boolean castMeteor(Player player, SkillsUser user) {
-        Entity target = getTarget(player, 25);
-        Location targetLoc = target != null ? target.getLocation() : player.getTargetBlockExact(25) != null ? player.getTargetBlockExact(25).getLocation() : null;
-        if (targetLoc == null) {
-            player.sendMessage(ChatColor.RED + "Target too far away!");
-            return false;
+        Location targetLoc = null;
+        org.bukkit.util.RayTraceResult ray = player.getWorld().rayTraceBlocks(player.getEyeLocation(), player.getEyeLocation().getDirection(), 50, org.bukkit.FluidCollisionMode.NEVER);
+        if (ray != null && ray.getHitBlock() != null) {
+            targetLoc = ray.getHitBlock().getLocation();
+        } else {
+            targetLoc = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(25));
         }
 
-        Location spawnLoc = targetLoc.clone().add(0, 20, 0);
-        spawnFlashyParticles(spawnLoc, SpellTier.LEGENDARY, Particle.FLAME);
+        double combat = user.getSkillLevel(dev.aurelium.auraskills.api.skill.Skills.FIGHTING);
+        double multiplier = 1.0 + (combat * 0.02);
         
-        // Spawn multiple magma blocks for a "bigger" look
-        final Location fTargetLoc = targetLoc;
-        new BukkitRunnable() {
-            int count = 0;
-            @Override
-            public void run() {
-                if (count >= 3) { this.cancel(); return; }
-                FallingBlock meteor = spawnLoc.getWorld().spawnFallingBlock(spawnLoc.clone().add(random.nextDouble()-0.5, 0, random.nextDouble()-0.5), Material.MAGMA_BLOCK.createBlockData());
-                meteor.setDropItem(false);
-                meteor.setHurtEntities(true);
-                handleMeteorImpact(meteor, fTargetLoc, 6.0f);
-                count++;
-            }
-        }.runTaskTimer(spellManager.getPlugin(), 0L, 2L);
-        
+        spawnPointToPointMeteor(player, targetLoc, 15.0 * multiplier, 1.5);
+        player.sendMessage(ChatColor.GOLD + "Meteor incanting...");
         return true;
     }
 
-    private void handleMeteorImpact(FallingBlock meteor, Location targetLoc, float radius) {
+    private void spawnPointToPointMeteor(LivingEntity caster, Location landingLoc, double damage, double knockback) {
+        Location startLoc = landingLoc.clone().add(random.nextInt(10) - 5, 30, random.nextInt(10) - 5);
+        Vector direction = landingLoc.toVector().subtract(startLoc.toVector()).normalize();
+        double speed = 1.5;
+
         new BukkitRunnable() {
+            Location current = startLoc.clone();
+            int steps = 0;
+
             @Override
             public void run() {
-                if (meteor.isDead() || meteor.isOnGround()) {
-                    Location hitLoc = meteor.getLocation();
-                    hitLoc.getWorld().createExplosion(hitLoc, radius, false, false); // Non-destructive
-                    spawnFlashyParticles(hitLoc, SpellTier.LEGENDARY, Particle.FLAME);
+                // If it hits a block or goes on too long or reaches target height
+                if (steps > 60 || current.getY() <= landingLoc.getY() || (steps > 5 && current.getBlock().getType().isSolid())) {
+                    handleMeteorImpact(current, damage, knockback, caster);
                     this.cancel();
-                } else {
-                    meteor.getWorld().spawnParticle(Particle.LARGE_SMOKE, meteor.getLocation(), 10, 0.2, 0.2, 0.2, 0.02);
-                    meteor.getWorld().spawnParticle(Particle.FLAME, meteor.getLocation(), 5, 0.1, 0.1, 0.1, 0.01);
+                    return;
                 }
+
+                // Meteor Visuals
+                current.getWorld().spawnParticle(Particle.LARGE_SMOKE, current, 12, 0.2, 0.2, 0.2, 0.05);
+                current.getWorld().spawnParticle(Particle.FLAME, current, 20, 0.3, 0.3, 0.3, 0.1);
+                current.getWorld().spawnParticle(Particle.LAVA, current, 3, 0.1, 0.1, 0.1, 0.05);
+                
+                if (steps % 3 == 0) {
+                    current.getWorld().playSound(current, Sound.ENTITY_GHAST_SHOOT, 0.6f, 0.5f);
+                }
+
+                current.add(direction.clone().multiply(speed));
+                steps++;
             }
-        }.runTaskTimer(spellManager.getPlugin(), 0L, 1L);
+        }.runTaskTimer(spellManager.getPlugin(), 0, 1);
     }
 
+    private void handleMeteorImpact(Location loc, double damage, double kb, LivingEntity caster) {
+        loc.getWorld().spawnParticle(Particle.EXPLOSION_EMITTER, loc, 3, 1, 1, 1, 0.1);
+        loc.getWorld().spawnParticle(Particle.FLAME, loc, 100, 2, 2, 2, 0.2);
+        loc.getWorld().playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 2.0f, 0.5f);
+        loc.getWorld().playSound(loc, Sound.ENTITY_DRAGON_FIREBALL_EXPLODE, 1.5f, 0.8f);
+
+        for (Entity e : loc.getWorld().getNearbyEntities(loc, 6, 6, 6)) {
+            if (e instanceof LivingEntity victim && !e.equals(caster)) {
+                victim.damage(damage, caster);
+                victim.setFireTicks(80);
+                
+                Vector dir = victim.getLocation().toVector().subtract(loc.toVector()).normalize();
+                dir.setY(0.5);
+                victim.setVelocity(dir.multiply(kb));
+            }
+        }
+    }
+
+
     private boolean castThunderstorm(Player player, SkillsUser user) {
-        spawnFlashyParticles(player.getLocation(), SpellTier.LEGENDARY, Particle.ELECTRIC_SPARK);
-        boolean isThundering = player.getWorld().isThundering();
-        double damageMultiplier = isThundering ? 1.2 : 1.0;
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.8f);
         
+        boolean isThundering = player.getWorld().isThundering();
+        double multiplier = isThundering ? 1.5 : 1.0;
+        double combat = user.getSkillLevel(dev.aurelium.auraskills.api.skill.Skills.FIGHTING);
+        double damage = (8.0 + (combat * 0.1)) * multiplier;
+
+        player.sendMessage(ChatColor.AQUA + "The storm heeds your call!");
+
         new BukkitRunnable() {
             int strikes = 0;
             @Override
             public void run() {
-                if (strikes >= 8) { this.cancel(); return; }
-                for (Entity entity : player.getNearbyEntities(12, 12, 12)) {
-                    if (entity instanceof LivingEntity && entity != player) {
+                if (strikes >= 8 || !player.isOnline()) {
+                    this.cancel();
+                    return;
+                }
+
+                List<Entity> nearby = player.getNearbyEntities(18, 12, 18);
+                boolean hitAny = false;
+                for (Entity entity : nearby) {
+                    if (entity instanceof LivingEntity && entity != player && entity.getType() != org.bukkit.entity.EntityType.ARMOR_STAND) {
                         LivingEntity target = (LivingEntity) entity;
+                        
+                        // Fake lightning effect (no fire/damage to blocks)
                         target.getWorld().strikeLightningEffect(target.getLocation());
-                        target.damage(5.0 * damageMultiplier);
+                        
+                        // Manual damage
+                        target.setNoDamageTicks(0);
+                        target.damage(damage, player);
+                        
+                        // Extra electric particles
+                        target.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, target.getLocation().add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.1);
+                        target.getWorld().spawnParticle(Particle.GLOW_SQUID_INK, target.getLocation().add(0, 1, 0), 10, 0.3, 0.3, 0.3, 0.05);
+                        hitAny = true;
                     }
                 }
+                
+                if (hitAny) {
+                    player.getWorld().playSound(player.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1.2f);
+                }
+
                 strikes++;
             }
-        }.runTaskTimer(spellManager.getPlugin(), 0L, 8L);
+        }.runTaskTimer(spellManager.getPlugin(), 0L, 15L);
         return true;
     }
 
@@ -361,24 +455,40 @@ public class SpellListener implements Listener {
     }
 
     private boolean castMeteorShower(Player player, SkillsUser user) {
-        Entity target = getTarget(player, 25);
-        Location center = target != null ? target.getLocation() : player.getTargetBlockExact(25) != null ? player.getTargetBlockExact(25).getLocation() : player.getLocation();
+        Location targetLoc = null;
+        org.bukkit.util.RayTraceResult ray = player.getWorld().rayTraceBlocks(player.getEyeLocation(), player.getEyeLocation().getDirection(), 50, org.bukkit.FluidCollisionMode.NEVER);
+        if (ray != null && ray.getHitBlock() != null) {
+            targetLoc = ray.getHitBlock().getLocation();
+        } else {
+            targetLoc = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(25));
+        }
+
+        double combat = user.getSkillLevel(dev.aurelium.auraskills.api.skill.Skills.FIGHTING);
+        double multiplier = 1.0 + (combat * 0.02);
         
-        spawnFlashyParticles(center, SpellTier.LEGENDARY, Particle.SOUL_FIRE_FLAME);
+        final Location center = targetLoc;
+        player.getWorld().playSound(center, Sound.ENTITY_WITHER_SPAWN, 1.0f, 0.5f);
+        player.sendMessage(ChatColor.RED + "Meteor Shower descending!");
         
         new BukkitRunnable() {
             int count = 0;
             @Override
             public void run() {
-                if (count >= 12) { this.cancel(); return; }
-                Location spawn = center.clone().add(random.nextInt(11)-5, 20 + random.nextInt(5), random.nextInt(11)-5);
-                FallingBlock mb = spawn.getWorld().spawnFallingBlock(spawn, Material.GILDED_BLACKSTONE.createBlockData());
-                mb.setDropItem(false);
-                mb.setHurtEntities(true);
-                handleMeteorImpact(mb, spawn.clone().subtract(0, 20, 0), 3.0f);
+                if (count >= 12) {
+                    this.cancel();
+                    return;
+                }
+                
+                double xOff = random.nextDouble() * 14 - 7;
+                double zOff = random.nextDouble() * 14 - 7;
+                Location impactLoc = center.clone().add(xOff, 0, zOff);
+                impactLoc.setY(impactLoc.getWorld().getHighestBlockYAt(impactLoc) + 0.1);
+
+                spawnPointToPointMeteor(player, impactLoc, 8.0 * multiplier, 1.0);
                 count++;
             }
-        }.runTaskTimer(spellManager.getPlugin(), 0L, 5L);
+        }.runTaskTimer(spellManager.getPlugin(), 10L, 5L);
+        
         return true;
     }
 
@@ -391,14 +501,25 @@ public class SpellListener implements Listener {
 
         boolean isThundering = player.getWorld().isThundering();
         double multiplier = isThundering ? 1.2 : 1.0;
-        spawnChainLightning(player.getEyeLocation(), (LivingEntity) target, 5, multiplier);
+        
+        // Calculate staff tip position (approximate)
+        Vector direction = player.getEyeLocation().getDirection();
+        Vector right = new Vector(-direction.getZ(), 0, direction.getX()).normalize();
+        Location wandLoc = player.getEyeLocation().add(direction.multiply(0.6)).add(right.multiply(0.4)).subtract(0, 0.2, 0);
+        
+        spawnChainLightning(wandLoc, (LivingEntity) target, 5, multiplier, player);
         return true;
     }
 
-    private void spawnChainLightning(Location start, LivingEntity target, int bounces, double multiplier) {
+    private void spawnChainLightning(Location start, LivingEntity target, int bounces, double multiplier, Player caster) {
         drawLightningBeam(start, target.getLocation().add(0, 1, 0));
-        target.getWorld().strikeLightningEffect(target.getLocation());
-        target.damage(8.0 * multiplier);
+        
+        // Impact effect instead of sky lightning
+        target.getWorld().spawnParticle(Particle.FLASH, target.getLocation().add(0, 1, 0), 3, 0.1, 0.1, 0.1, 0.01);
+        target.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, target.getLocation().add(0, 1, 0), 20, 0.2, 0.2, 0.2, 0.1);
+        
+        target.setNoDamageTicks(0);
+        target.damage(8.0 * multiplier, caster);
         
         if (bounces <= 0) return;
 
@@ -407,13 +528,13 @@ public class SpellListener implements Listener {
             public void run() {
                 LivingEntity next = null;
                 for (Entity e : target.getNearbyEntities(8, 8, 8)) {
-                    if (e instanceof LivingEntity && e != target && e.getType() != org.bukkit.entity.EntityType.PLAYER) {
+                    if (e instanceof LivingEntity && e != target && e != caster && e.getType() != org.bukkit.entity.EntityType.PLAYER) {
                         next = (LivingEntity) e;
                         break;
                     }
                 }
                 if (next != null) {
-                    spawnChainLightning(target.getLocation().add(0, 1, 0), next, bounces - 1, multiplier);
+                    spawnChainLightning(target.getLocation().add(0, 1, 0), next, bounces - 1, multiplier, caster);
                 }
             }
         }.runTaskLater(spellManager.getPlugin(), 5L);
@@ -422,52 +543,77 @@ public class SpellListener implements Listener {
     private void drawLightningBeam(Location start, Location end) {
         double dist = start.distance(end);
         Vector dir = end.toVector().subtract(start.toVector()).normalize();
-        for (double i = 0; i < dist; i += 0.5) {
+        for (double i = 0; i < dist; i += 0.3) { // Increased density
             Location point = start.clone().add(dir.clone().multiply(i));
-            // Add zigzag offset
-            point.add(random.nextDouble()*0.4 - 0.2, random.nextDouble()*0.4 - 0.2, random.nextDouble()*0.4 - 0.2);
-            point.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, point, 3, 0.05, 0.05, 0.05, 0.02);
-            if (random.nextInt(5) == 0) point.getWorld().spawnParticle(Particle.GLOW, point, 1, 0, 0, 0, 0);
+            // Enhanced zigzag offset
+            point.add(random.nextDouble()*0.5 - 0.25, random.nextDouble()*0.5 - 0.25, random.nextDouble()*0.5 - 0.25);
+            point.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, point, 5, 0.05, 0.05, 0.05, 0.02);
+            if (random.nextInt(3) == 0) point.getWorld().spawnParticle(Particle.GLOW, point, 1, 0, 0, 0, 0);
+            if (random.nextInt(5) == 0) point.getWorld().spawnParticle(Particle.END_ROD, point, 1, 0.02, 0.02, 0.02, 0.01);
         }
-        start.getWorld().playSound(start, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.5f, 2.0f);
+        start.getWorld().playSound(start, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.4f, 2.0f);
     }
 
     private boolean castMalevolentShrine(Player player, SkillsUser user) {
-        Location center = player.getLocation();
-        spawnFlashyParticles(center, SpellTier.MYTHIC, Particle.SOUL);
-        player.getWorld().playSound(center, Sound.ENTITY_WITHER_SPAWN, 1.0f, 0.5f);
+        Location playerLoc = player.getLocation();
+        final Location center = playerLoc.getWorld().getHighestBlockAt(playerLoc).getLocation().add(0, 0.1, 0);
         
-        player.sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "MALEVOLENT SHRINE!");
+        spawnFlashyParticles(center, SpellTier.MYTHIC, Particle.SOUL);
+        center.getWorld().playSound(center, Sound.ENTITY_WITHER_SPAWN, 1.2f, 0.5f);
+        
+        player.sendMessage(ChatColor.DARK_RED + "" + ChatColor.BOLD + "DOMAIN EXPANSION: MALEVOLENT SHRINE");
+        spellManager.getPlugin().getLogger().info("[SKE] Malevolent Shrine cast at " + center.getX() + ", " + center.getY() + ", " + center.getZ());
 
         new BukkitRunnable() {
             int strikes = 0;
-            final int totalStrikes = 300;
+            final int totalStrikes = 200; // 20 seconds at 10hz
 
             @Override
             public void run() {
-                if (strikes >= totalStrikes) {
+                if (strikes >= totalStrikes || !player.isOnline()) {
                     this.cancel();
                     return;
                 }
 
-                List<Entity> targets = player.getNearbyEntities(50, 50, 50);
-                for (Entity entity : targets) {
-                    if (entity instanceof LivingEntity && entity != player) {
-                        LivingEntity target = (LivingEntity) entity;
-                        if (!target.isDead() && target.isValid()) {
-                            spawnSlashParticle(target.getLocation());
-                            target.damage(0.5);
+                // Domain Boundary Visual (Soul particles)
+                if (strikes % 5 == 0) {
+                    for (int i = 0; i < 360; i += 10) {
+                    double rad = Math.toRadians(i + (strikes * 2));
+                    double x = Math.cos(rad) * 15;
+                    double z = Math.sin(rad) * 15;
+                    
+                        center.getWorld().spawnParticle(Particle.SOUL, center.clone().add(x, 0.2, z), 3, 0.1, 0.1, 0.1, 0.02);
+                        if (strikes % 20 == 0) {
+                            center.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, center.clone().add(x, 0.5, z), 1, 0, 0.1, 0, 0.01);
                         }
                     }
                 }
 
-                if (strikes % 5 == 0) {
-                    player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.8f, 0.5f);
+                // Use stationary center instead of player location for damage
+                Collection<Entity> targets = center.getWorld().getNearbyEntities(center, 15, 10, 15);
+                for (Entity entity : targets) {
+                    if (entity instanceof LivingEntity && entity != player && entity.getType() != org.bukkit.entity.EntityType.ARMOR_STAND) {
+                        LivingEntity target = (LivingEntity) entity;
+                        if (!target.isDead() && target.isValid()) {
+                            // Multiple slashes per entity
+                            spawnSlashParticle(target.getLocation());
+                            target.setNoDamageTicks(0);
+                            target.damage(3.5, player); // Heavy damage
+                            
+                            // Visual feedback on impact
+                            target.getWorld().spawnParticle(Particle.SWEEP_ATTACK, target.getLocation().add(0, 1, 0), 1, 0.2, 0.2, 0.2, 0);
+                        }
+                    }
+                }
+
+                if (strikes % 3 == 0) {
+                    center.getWorld().playSound(center, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.7f, 0.5f);
+                    center.getWorld().playSound(center, Sound.ITEM_TRIDENT_RIPTIDE_2, 0.4f, 0.6f);
                 }
 
                 strikes++;
             }
-        }.runTaskTimer(spellManager.getPlugin(), 0L, 2L); // 2 ticks = 10 times per second over 30 seconds
+        }.runTaskTimer(spellManager.getPlugin(), 0L, 2L);
 
         return true;
     }
@@ -478,12 +624,9 @@ public class SpellListener implements Listener {
         double offsetZ = random.nextDouble() * 2 - 1;
         Location pLoc = loc.clone().add(offsetX, offsetY, offsetZ);
         
-        // Red and Black Dust
-        org.bukkit.Particle.DustOptions redDust = new org.bukkit.Particle.DustOptions(org.bukkit.Color.RED, 1.0f);
-        org.bukkit.Particle.DustOptions blackDust = new org.bukkit.Particle.DustOptions(org.bukkit.Color.BLACK, 1.0f);
-        
-        pLoc.getWorld().spawnParticle(Particle.DUST, pLoc, 5, 0.1, 0.1, 0.1, 0.05, redDust);
-        pLoc.getWorld().spawnParticle(Particle.DUST, pLoc, 5, 0.1, 0.1, 0.1, 0.05, blackDust);
+        // Use CRIT and SWEEP_ATTACK instead of DUST to avoid "Missing Color data" errors in 1.21
+        pLoc.getWorld().spawnParticle(Particle.CRIT, pLoc, 10, 0.2, 0.2, 0.2, 0.1);
+        pLoc.getWorld().spawnParticle(Particle.ENCHANTED_HIT, pLoc, 5, 0.1, 0.1, 0.1, 0.05);
         
         // Tiny line effect to look like a slash
         Vector dir = new Vector(random.nextDouble()-0.5, random.nextDouble()-0.5, random.nextDouble()-0.5).normalize();
@@ -495,7 +638,7 @@ public class SpellListener implements Listener {
     private Entity getTarget(Player player, int range) {
         List<Entity> entities = player.getNearbyEntities(range, range, range);
         Entity best = null;
-        double bestAngle = 0.9;
+        double bestAngle = 0.7; // Changed from 0.9 to 0.7 for easier targeting
 
         for (Entity e : entities) {
             if (!(e instanceof LivingEntity)) continue;

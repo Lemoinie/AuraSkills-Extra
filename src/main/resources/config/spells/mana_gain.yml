@@ -1,0 +1,27 @@
+# Mana Gain on Kill Configuration
+# Format: ENTITY_TYPE: amount
+# Entity types must match Bukkit EntityType enum (uppercase)
+
+ZOMBIE: 1.0
+SKELETON: 1.0
+SPIDER: 1.5
+CREEPER: 2.0
+ENDERMAN: 5.0
+WITCH: 3.0
+BLAZE: 2.5
+GHAST: 5.0
+WITHER_SKELETON: 4.0
+PIGLIN: 1.0
+HOGLIN: 2.0
+RAVAGER: 10.0
+EVOKER: 15.0
+WITHER: 100.0
+ENDER_DRAGON: 250.0
+WARDEN: 150.0
+
+# Passive mobs (default 0 or small)
+COW: 0.1
+PIG: 0.1
+SHEEP: 0.1
+CHICKEN: 0.1
+VILLAGER: -5.0 # Penalty for killing villagers?

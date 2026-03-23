@@ -1,0 +1,19 @@
+title: 'Select Player'
+size: 6
+fill:
+  enabled: true
+  material: gray_stained_glass_pane
+  display_name: ' '
+templates:
+  player:
+    slots:
+      - 0-44
+    material: player_head
+    display_name: '<yellow>{player_name}'
+    lore:
+      - '<gray>Click to manage spells'
+items:
+  back:
+    pos: 5,4
+    material: arrow
+    display_name: '<red>Back'

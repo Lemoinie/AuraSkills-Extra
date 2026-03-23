@@ -51,17 +51,29 @@ public enum Origin {
             Arrays.asList("Alpha: Wild wolves are passive, Tamed wolves deal +10% dmg and have +30% HP", "Pack Tactics: +2% Damage per nearby tamed wolf", "Bone Collector: Skeletons are scared of you", "Alpha Howl: Shift + Right-Click to heal pack (Costs Mana)"),
             Arrays.asList("Meat Eater: Can only eat meat", "Small Stature: -25% Size"));
 
-    private final String displayName;
-    private final Material icon;
-    private final double scale;
-    private final double healthModifier;
-    private final double speedModifier;
-    private final double damageModifier;
-    private final double luckModifier;
-    private final List<String> pros;
-    private final List<String> cons;
+    private String displayName;
+    private Material icon;
+    private double scale;
+    private double healthModifier;
+    private double speedModifier;
+    private double damageModifier;
+    private double luckModifier;
+    private List<String> pros;
+    private List<String> cons;
 
     Origin(String displayName, Material icon, double scale, double healthModifier, double speedModifier, double damageModifier, double luckModifier, List<String> pros, List<String> cons) {
+        this.displayName = displayName;
+        this.icon = icon;
+        this.scale = scale;
+        this.healthModifier = healthModifier;
+        this.speedModifier = speedModifier;
+        this.damageModifier = damageModifier;
+        this.luckModifier = luckModifier;
+        this.pros = pros;
+        this.cons = cons;
+    }
+
+    public void update(String displayName, Material icon, double scale, double healthModifier, double speedModifier, double damageModifier, double luckModifier, List<String> pros, List<String> cons) {
         this.displayName = displayName;
         this.icon = icon;
         this.scale = scale;

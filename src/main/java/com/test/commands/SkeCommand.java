@@ -35,6 +35,18 @@ public class SkeCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 0) return false;
 
+        if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
+            if (!sender.hasPermission("ske.admin")) {
+                sender.sendMessage(ChatColor.RED + "You do not have permission to execute this command!");
+                return true;
+            }
+            plugin.reloadConfig();
+            plugin.getOriginManager().loadConfigs();
+            plugin.getSpellManager().loadConfigs();
+            sender.sendMessage(ChatColor.GREEN + "AuraSkills-Extra configurations reloaded!");
+            return true;
+        }
+
         // --- /ske origins ... ---
         if (args[0].equalsIgnoreCase("origins")) {
             if (!sender.hasPermission("ske.admin")) {
@@ -57,7 +69,9 @@ public class SkeCommand implements CommandExecutor, TabCompleter {
             switch (sub) {
                 case "reload":
                     plugin.reloadConfig();
-                    sender.sendMessage(ChatColor.GREEN + "Origins configuration reloaded!");
+                    plugin.getOriginManager().loadConfigs();
+                    plugin.getSpellManager().loadConfigs();
+                    sender.sendMessage(ChatColor.GREEN + "All configurations reloaded!");
                     return true;
 
                 case "enable":
@@ -135,6 +149,14 @@ public class SkeCommand implements CommandExecutor, TabCompleter {
                 p.sendMessage(ChatColor.GREEN + "You received a Spell Wand!");
                 return true;
             }
+            if (args.length > 1 && args[1].equalsIgnoreCase("admin")) {
+                if (!p.hasPermission("ske.admin")) {
+                    p.sendMessage(ChatColor.RED + "You do not have permission to access the Spell Admin GUI!");
+                    return true;
+                }
+                dev.aurelium.auraskills.api.AuraSkillsBukkit.get().getMenuManager().openMenu(p, "spells_admin");
+                return true;
+            }
             dev.aurelium.auraskills.api.AuraSkillsBukkit.get().getMenuManager().openMenu(p, "spells_main");
             return true;
         }
@@ -208,7 +230,7 @@ public class SkeCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 2 && args[0].equalsIgnoreCase("spells")) {
-            return filter(Arrays.asList("getwand"), args[1]);
+            return filter(Arrays.asList("getwand", "admin"), args[1]);
         }
 
         if (args.length >= 2 && args[0].equalsIgnoreCase("admin")) {

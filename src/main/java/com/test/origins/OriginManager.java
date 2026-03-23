@@ -30,7 +30,68 @@ public class OriginManager {
         this.dynamicModifierKey = new org.bukkit.NamespacedKey(plugin, "origin_dynamic_modifier");
         this.storage = new OriginDataStorage(plugin);
         this.playerOrigins.putAll(storage.loadAll());
+        loadConfigs();
         loadLootTables();
+    }
+
+    public void loadConfigs() {
+        File configDir = new File(plugin.getDataFolder(), "config/origins");
+        if (!configDir.exists()) configDir.mkdirs();
+
+        // Master Config
+        File masterFile = new File(configDir, "master.yml");
+        if (masterFile.exists()) {
+            YamlConfiguration master = YamlConfiguration.loadConfiguration(masterFile);
+            this.enabled = master.getBoolean("enabled", true);
+        }
+
+        // Detailed Configs
+        for (Origin origin : Origin.values()) {
+            if (origin == Origin.NONE) continue;
+            File originFile = new File(configDir, origin.name().toLowerCase() + ".yml");
+            if (!originFile.exists()) {
+                saveDefaultOriginConfig(origin, originFile);
+            } else {
+                loadOriginConfig(origin, originFile);
+            }
+        }
+    }
+
+    private void saveDefaultOriginConfig(Origin origin, File file) {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("display_name", origin.getDisplayName());
+        config.set("icon", origin.getIcon().name());
+        config.set("scale", origin.getScale());
+        config.set("health_modifier", origin.getHealthModifier());
+        config.set("speed_modifier", origin.getSpeedModifier());
+        config.set("damage_modifier", origin.getDamageModifier());
+        config.set("luck_modifier", origin.getLuckModifier());
+        config.set("pros", origin.getPros());
+        config.set("cons", origin.getCons());
+        try {
+            config.save(file);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to save default config for origin " + origin.name());
+        }
+    }
+
+    private void loadOriginConfig(Origin origin, File file) {
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        try {
+            String name = config.getString("display_name", origin.getDisplayName());
+            Material icon = Material.valueOf(config.getString("icon", origin.getIcon().name()));
+            double scale = config.getDouble("scale", origin.getScale());
+            double hp = config.getDouble("health_modifier", origin.getHealthModifier());
+            double speed = config.getDouble("speed_modifier", origin.getSpeedModifier());
+            double dmg = config.getDouble("damage_modifier", origin.getDamageModifier());
+            double luck = config.getDouble("luck_modifier", origin.getLuckModifier());
+            List<String> pros = config.getStringList("pros");
+            List<String> cons = config.getStringList("cons");
+            
+            origin.update(name, icon, scale, hp, speed, dmg, luck, pros.isEmpty() ? origin.getPros() : pros, cons.isEmpty() ? origin.getCons() : cons);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to load config for origin " + origin.name());
+        }
     }
 
     private void loadLootTables() {

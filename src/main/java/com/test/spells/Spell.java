@@ -15,14 +15,54 @@ public enum Spell {
     CHAIN_LIGHTNING("Chain Lightning", SpellTier.LEGENDARY, "A lightning beam that jumps between enemies."),
     MALEVOLENT_SHRINE("Malevolent Shrine", SpellTier.MYTHIC, "A devastating ritual that slashes enemies in a massive radius.");
 
-    private final String displayName;
-    private final SpellTier tier;
-    private final String description;
+    private String displayName;
+    private SpellTier tier;
+    private String description;
+    private double manaCost;
+    private long cooldown;
+    private int xpCost;
+    private int wisdomRequirement;
 
     Spell(String displayName, SpellTier tier, String description) {
         this.displayName = displayName;
         this.tier = tier;
         this.description = description;
+        this.xpCost = tier.getXpCost();
+        this.wisdomRequirement = tier.getWisdomRequirement();
+        
+        // Default mana costs based on tier
+        if (tier == SpellTier.COMMON) this.manaCost = 15;
+        else if (tier == SpellTier.UNCOMMON) this.manaCost = 30;
+        else if (tier == SpellTier.RARE) this.manaCost = 60;
+        else if (tier == SpellTier.LEGENDARY) this.manaCost = 150;
+        else if (tier == SpellTier.MYTHIC) this.manaCost = 300;
+        else this.manaCost = 20;
+
+        // Default cooldowns
+        this.cooldown = 5;
+        if (this.name().equals("SPARK")) this.cooldown = 1;
+        else if (this.name().equals("KINETIC_SHOVE")) this.cooldown = 3;
+        else if (this.name().equals("MAGE_LIGHT")) this.cooldown = 5;
+        else if (this.name().equals("NATURES_ROOT")) this.cooldown = 8;
+        else if (this.name().equals("FIREBOLT")) this.cooldown = 5;
+        else if (this.name().equals("FROST_TOUCH")) this.cooldown = 8;
+        else if (this.name().equals("ARCANE_SURGE")) this.cooldown = 15;
+        else if (this.name().equals("THUNDERSTORM")) this.cooldown = 30;
+        else if (this.name().equals("STORM_CALLING")) this.cooldown = 300;
+        else if (this.name().equals("METEOR")) this.cooldown = 45;
+        else if (this.name().equals("METEOR_SHOWER")) this.cooldown = 60;
+        else if (this.name().equals("CHAIN_LIGHTNING")) this.cooldown = 20;
+        else if (this.name().equals("MALEVOLENT_SHRINE")) this.cooldown = 120;
+    }
+
+    public void update(String displayName, SpellTier tier, String description, double manaCost, long cooldown, int xpCost, int wisdomRequirement) {
+        this.displayName = displayName;
+        this.tier = tier;
+        this.description = description;
+        this.manaCost = manaCost;
+        this.cooldown = cooldown;
+        this.xpCost = xpCost;
+        this.wisdomRequirement = wisdomRequirement;
     }
 
     public String getDisplayName() {
@@ -35,5 +75,21 @@ public enum Spell {
 
     public String getDescription() {
         return description;
+    }
+
+    public double getManaCost() {
+        return manaCost;
+    }
+
+    public long getCooldown() {
+        return cooldown;
+    }
+
+    public int getXpCost() {
+        return xpCost;
+    }
+
+    public int getWisdomRequirement() {
+        return wisdomRequirement;
     }
 }

@@ -20,28 +20,97 @@ public class SpellManager {
 
     private final Plugin plugin;
     private final SpellDataStorage storage;
+    private boolean enabled = true;
+    private double manaRegenMultiplier = 1.0;
     private final Map<UUID, Set<Spell>> playerLearnedSpells = new HashMap<>();
     private final Map<UUID, List<Spell>> playerEquippedSpells = new HashMap<>();
     private final Map<UUID, Integer> activeSpellIndex = new HashMap<>();
     private final Map<UUID, Long> surgeDiscount = new HashMap<>();
     private final Map<UUID, Map<Spell, Long>> cooldowns = new HashMap<>();
+    private final Map<org.bukkit.entity.EntityType, Double> manaOnKill = new HashMap<>();
 
     public SpellManager(Plugin plugin) {
         this.plugin = plugin;
         this.storage = new SpellDataStorage(plugin);
         this.playerLearnedSpells.putAll(storage.loadAllLearned());
         this.playerEquippedSpells.putAll(storage.loadAllEquipped());
-        loadConfig();
+        loadConfigs();
+    }
+
+    public void loadConfigs() {
+        File configDir = new File(plugin.getDataFolder(), "config/spells");
+        if (!configDir.exists()) configDir.mkdirs();
+
+        // Master Config
+        File masterFile = new File(configDir, "master.yml");
+        if (masterFile.exists()) {
+            YamlConfiguration master = YamlConfiguration.loadConfiguration(masterFile);
+            this.enabled = master.getBoolean("enabled", true);
+            this.manaRegenMultiplier = master.getDouble("mana_regen_multiplier", 1.0);
+        }
+
+        // Detailed Configs
+        for (Spell spell : Spell.values()) {
+            File spellFile = new File(configDir, spell.name().toLowerCase() + ".yml");
+            if (!spellFile.exists()) {
+                saveDefaultSpellConfig(spell, spellFile);
+            } else {
+                loadSpellConfig(spell, spellFile);
+            }
+        }
+        loadTierConfig();
+        loadManaGainConfig();
+    }
+
+    private void saveDefaultSpellConfig(Spell spell, File file) {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("display_name", spell.getDisplayName());
+        config.set("tier", spell.getTier().name());
+        config.set("description", spell.getDescription());
+        config.set("mana_cost", spell.getManaCost());
+        config.set("cooldown", spell.getCooldown());
+        config.set("xp_cost", spell.getXpCost());
+        config.set("wisdom_requirement", spell.getWisdomRequirement());
+        try {
+            config.save(file);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to save default config for spell " + spell.name());
+        }
+    }
+
+    private void loadSpellConfig(Spell spell, File file) {
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        try {
+            String name = config.getString("display_name", spell.getDisplayName());
+            SpellTier tier = SpellTier.valueOf(config.getString("tier", spell.getTier().name()));
+            String desc = config.getString("description", spell.getDescription());
+            double mana = config.getDouble("mana_cost", spell.getManaCost());
+            long cd = config.getLong("cooldown", spell.getCooldown());
+            int xp = config.getInt("xp_cost", spell.getXpCost());
+            int wisdom = config.getInt("wisdom_requirement", spell.getWisdomRequirement());
+            
+            spell.update(name, tier, desc, mana, cd, xp, wisdom);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to load config for spell " + spell.name());
+        }
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public double getManaRegenMultiplier() {
+        return manaRegenMultiplier;
     }
 
     public Plugin getPlugin() {
         return plugin;
     }
 
-    public void loadConfig() {
-        File configFile = new File(plugin.getDataFolder(), "spells.yml");
+    public void loadTierConfig() {
+        File configFile = new File(plugin.getDataFolder(), "config/spells/tiers.yml");
         if (!configFile.exists()) {
-            plugin.saveResource("spells.yml", false);
+            return;
         }
         YamlConfiguration config = YamlConfiguration.loadConfiguration(configFile);
         
@@ -59,6 +128,25 @@ public class SpellManager {
                 tier.setUsable(usable);
             }
         }
+    }
+
+    private void loadManaGainConfig() {
+        File file = new File(plugin.getDataFolder(), "config/spells/mana_gain.yml");
+        if (!file.exists()) {
+            plugin.saveResource("config/spells/mana_gain.yml", false);
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        manaOnKill.clear();
+        for (String key : config.getKeys(false)) {
+            try {
+                org.bukkit.entity.EntityType type = org.bukkit.entity.EntityType.valueOf(key.toUpperCase());
+                manaOnKill.put(type, config.getDouble(key));
+            } catch (IllegalArgumentException ignored) {}
+        }
+    }
+
+    public double getManaGain(org.bukkit.entity.EntityType type) {
+        return manaOnKill.getOrDefault(type, 0.0);
     }
 
     public Set<Spell> getLearnedSpells(Player player) {
@@ -177,10 +265,10 @@ public class SpellManager {
         if (user == null) return false;
         
         double wisdom = user.getStatLevel(dev.aurelium.auraskills.api.stat.Stats.WISDOM);
-        if (wisdom < tier.getWisdomRequirement()) return false;
+        if (wisdom < spell.getWisdomRequirement()) return false;
 
         // Check XP Cost (Minecraft Levels for now, as it's common for "costs")
-        if (player.getLevel() < tier.getXpCost()) return false;
+        if (player.getLevel() < spell.getXpCost()) return false;
 
         return true;
     }
